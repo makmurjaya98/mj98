@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MJ98 - Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard - MJ98</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       background-color: #0e0f11;
-      font-family: Arial, sans-serif;
       color: #fff;
+      font-family: Arial, sans-serif;
       margin: 0;
       padding: 0;
     }
@@ -41,23 +42,46 @@
       text-decoration: underline;
     }
 
-    main {
+    .container {
       padding: 30px;
-      text-align: center;
+    }
+
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
     }
 
     .card {
       background-color: #1e1f23;
       border-radius: 12px;
       padding: 20px;
-      margin: 10px auto;
-      width: 90%;
-      max-width: 400px;
+      text-align: center;
+      flex: 1;
+      min-width: 200px;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
     }
 
     .card h2 {
       color: #ffcc00;
+      font-size: 36px;
+      margin: 0;
+    }
+
+    .card p {
+      margin-top: 5px;
+      color: #aaa;
+    }
+
+    .chart-container {
+      background-color: #1e1f23;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      max-width: 800px;
+      margin: auto;
     }
 
     .footer {
@@ -81,21 +105,81 @@
     <a href="akun.html">Akun</a>
   </nav>
 
-  <main>
-    <div class="card">
-      <h2>Selamat datang di MJ98</h2>
-      <p>Kelola voucher, penjualan, dan jaringan Anda dengan mudah.</p>
+  <div class="container">
+    <div class="stats">
+      <div class="card">
+        <h2 id="total-rp">Rp 0</h2>
+        <p>Total Penjualan</p>
+      </div>
+      <div class="card">
+        <h2 id="total-voucher">0</h2>
+        <p>Voucher Terjual</p>
+      </div>
+      <div class="card">
+        <h2 id="total-transaksi">0</h2>
+        <p>Jumlah Transaksi</p>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Status Singkat</h2>
-      <p>Penjualan hari ini: <strong>Rp 0</strong></p>
-      <p>Stok tersisa: <strong>0 voucher</strong></p>
+    <div class="chart-container">
+      <canvas id="salesChart"></canvas>
     </div>
-  </main>
+  </div>
 
   <div class="footer">
     &copy; 2025 MJ98 - All rights reserved.
   </div>
+
+  <script type="module">
+    import { supabase } from './supabase/supabaseClient.js';
+
+    async function loadDashboard() {
+      const { data, error } = await supabase.from('penjualan').select('*');
+      if (error) {
+        alert("Gagal ambil data penjualan");
+        return;
+      }
+
+      const totalTransaksi = data.length;
+      const totalQty = data.reduce((sum, d) => sum + d.qty, 0);
+      const totalRp = data.reduce((sum, d) => sum + d['total harga'], 0);
+
+      document.getElementById('total-transaksi').textContent = totalTransaksi;
+      document.getElementById('total-voucher').textContent = totalQty;
+      document.getElementById('total-rp').textContent = 'Rp ' + totalRp.toLocaleString('id-ID');
+
+      const groupByDate = {};
+      data.forEach(d => {
+        const tgl = new Date(d.tanggal).toLocaleDateString('id-ID');
+        if (!groupByDate[tgl]) groupByDate[tgl] = 0;
+        groupByDate[tgl] += d['total harga'];
+      });
+
+      const labels = Object.keys(groupByDate);
+      const values = Object.values(groupByDate);
+
+      new Chart(document.getElementById('salesChart'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Total Penjualan (Rp)',
+            data: values,
+            backgroundColor: '#ffcc00'
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    loadDashboard();
+  </script>
 </body>
 </html>
