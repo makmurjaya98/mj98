@@ -52,11 +52,30 @@
       padding: 20px;
       margin: 10px auto;
       width: 90%;
-      max-width: 600px;
+      max-width: 1000px;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
     }
 
     .card h2 {
+      color: #ffcc00;
+      margin-bottom: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: #1b1c1f;
+      color: white;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #444;
+      text-align: center;
+    }
+
+    th {
+      background-color: #333;
       color: #ffcc00;
     }
 
@@ -83,13 +102,67 @@
 
   <main>
     <div class="card">
-      <h2>Halaman Penjualan</h2>
-      <p>Di sini nanti akan tampil data transaksi penjualan voucher.</p>
+      <h2>Data Penjualan Voucher</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Username</th>
+            <th>Jenis Voucher</th>
+            <th>Harga</th>
+            <th>Qty</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="penjualan-body">
+          <tr><td colspan="6">Memuat data...</td></tr>
+        </tbody>
+      </table>
     </div>
   </main>
 
   <div class="footer">
     &copy; 2025 MJ98 - All rights reserved.
   </div>
+
+  <script type="module">
+    import { supabase } from './supabase/supabaseClient.js';
+
+    const tbody = document.getElementById('penjualan-body');
+
+    async function loadData() {
+      const { data, error } = await supabase
+        .from('penjualan')
+        .select('*')
+        .order('tanggal', { ascending: false });
+
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="6" style="color:red;">Gagal ambil data: ${error.message}</td></tr>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6">Belum ada data penjualan</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = ""; // Kosongkan sebelum render
+      data.forEach(item => {
+        const row = `
+          <tr>
+            <td>${item.tanggal}</td>
+            <td>${item.username}</td>
+            <td>${item.jenis_vouc}</td>
+            <td>Rp${item.harga.toLocaleString()}</td>
+            <td>${item.qty}</td>
+            <td>Rp${item.total_harga.toLocaleString()}</td>
+          </tr>
+        `;
+        tbody.innerHTML += row;
+      });
+    }
+
+    loadData();
+  </script>
 </body>
 </html>

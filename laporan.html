@@ -52,11 +52,30 @@
       padding: 20px;
       margin: 10px auto;
       width: 90%;
-      max-width: 500px;
+      max-width: 1000px;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
     }
 
     .card h2 {
+      color: #ffcc00;
+      margin-bottom: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: #1b1c1f;
+      color: white;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #444;
+      text-align: center;
+    }
+
+    th {
+      background-color: #333;
       color: #ffcc00;
     }
 
@@ -83,13 +102,70 @@
 
   <main>
     <div class="card">
-      <h2>Halaman Laporan</h2>
-      <p>Di sini nanti akan tampil laporan penjualan, pendapatan, dan performa cabang & link.</p>
+      <h2>Laporan Penjualan per Pengguna</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Jumlah Transaksi</th>
+            <th>Total Penjualan (Rp)</th>
+          </tr>
+        </thead>
+        <tbody id="laporan-body">
+          <tr><td colspan="3">Memuat laporan...</td></tr>
+        </tbody>
+      </table>
     </div>
   </main>
 
   <div class="footer">
     &copy; 2025 MJ98 - All rights reserved.
   </div>
+
+  <script type="module">
+    import { supabase } from './supabase/supabaseClient.js';
+
+    const tbody = document.getElementById('laporan-body');
+
+    async function loadLaporan() {
+      const { data, error } = await supabase
+        .from('penjualan')
+        .select('username, total_harga');
+
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="3" style="color:red;">Gagal ambil data: ${error.message}</td></tr>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3">Belum ada data penjualan</td></tr>`;
+        return;
+      }
+
+      // Grouping per username
+      const laporan = {};
+      data.forEach(item => {
+        if (!laporan[item.username]) {
+          laporan[item.username] = { total: 0, transaksi: 0 };
+        }
+        laporan[item.username].total += item.total_harga;
+        laporan[item.username].transaksi += 1;
+      });
+
+      tbody.innerHTML = '';
+      Object.entries(laporan).forEach(([username, info]) => {
+        const row = `
+          <tr>
+            <td>${username}</td>
+            <td>${info.transaksi}</td>
+            <td>Rp${info.total.toLocaleString()}</td>
+          </tr>
+        `;
+        tbody.innerHTML += row;
+      });
+    }
+
+    loadLaporan();
+  </script>
 </body>
 </html>
