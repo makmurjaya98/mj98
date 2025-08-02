@@ -1,0 +1,61 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>🏆 Laporan Pemenang Kupon - MJ98</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h2>🏆 Laporan Pemenang Kupon</h2>
+
+  <!-- TABEL -->
+  <table border="1" style="margin-top: 20px; width: 100%;">
+    <thead>
+      <tr>
+        <th>Kode Kupon</th>
+        <th>Nama Pemenang</th>
+        <th>Email</th>
+        <th>Tanggal Menang</th>
+      </tr>
+    </thead>
+    <tbody id="tabelPemenang"></tbody>
+  </table>
+
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    import { supabaseUrl, supabaseKey } from "./config.js";
+    import { cekAksesFitur } from "./proteksi-fitur.js";
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await cekAksesFitur("laporan-pemenang.html");
+
+      const { data: pemenangs } = await supabase
+        .from("kupon_pemenang")
+        .select("*, users(nama_lengkap, email), kupon(kode_kupon)")
+        .order("created_at", { ascending: false });
+
+      const tbody = document.getElementById("tabelPemenang");
+      tbody.innerHTML = "";
+
+      if (!pemenangs || pemenangs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4">Belum ada pemenang.</td></tr>`;
+        return;
+      }
+
+      pemenangs.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.kupon?.kode_kupon || "-"}</td>
+          <td>${row.users?.nama_lengkap || "-"}</td>
+          <td>${row.users?.email || "-"}</td>
+          <td>${new Date(row.created_at).toLocaleString("id-ID")}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    });
+  </script>
+</body>
+</html>
+

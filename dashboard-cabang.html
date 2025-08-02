@@ -1,0 +1,249 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard Cabang MJ98</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f7f9fc;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .card {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 12px;
+      flex: 1 1 200px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .card h2 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .card p {
+      font-size: 18px;
+      margin: 0;
+    }
+
+    .actions, .table-section {
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .actions button {
+      margin: 5px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 30px;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .actions button:hover {
+      background-color: #0056b3;
+    }
+
+    .logout-btn {
+      background-color: #dc3545;
+    }
+
+    .logout-btn:hover {
+      background-color: #bd2130;
+    }
+
+    table {
+      margin: 0 auto;
+      border-collapse: collapse;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #f0f0f0;
+    }
+
+    canvas {
+      display: block;
+      margin: 30px auto;
+      max-width: 600px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🏢 Dashboard Cabang</h1>
+
+  <div class="stats">
+    <div class="card">
+      <h2>Total Link</h2>
+      <p id="totalLink">-</p>
+    </div>
+    <div class="card">
+      <h2>Penjualan Hari Ini</h2>
+      <p id="totalPenjualan">-</p>
+    </div>
+  </div>
+
+  <!-- Grafik -->
+  <canvas id="linkChart" height="100"></canvas>
+
+  <!-- Tabel aktivitas -->
+  <div class="table-section">
+    <h3>🧑‍💻 Daftar Link & Aktivitas</h3>
+    <table>
+      <thead>
+        <tr><th>Nama Link</th><th>Jumlah Transaksi (Dummy)</th></tr>
+      </thead>
+      <tbody id="linkTable"></tbody>
+    </table>
+  </div>
+
+  <!-- Aksi cepat -->
+  <div class="actions">
+    <button onclick="location.href='register-link.html'">➕ Tambah Link</button>
+    <button onclick="location.href='laporan-link.html'">📊 Laporan Penjualan</button>
+    <button onclick="location.href='stok.html'">📦 Stok</button>
+    <button class="logout-btn" id="logoutBtn">🚪 Logout</button>
+  </div>
+
+  <script type="module">
+    import { supabase } from './supabase-init.js';
+
+    let currentCabangId = '';
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = "login.html";
+
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("role, id")
+        .eq("id", user.id)
+        .single();
+
+      if (error || !profile || profile.role !== "cabang") {
+        alert("Akses ditolak! Anda bukan Cabang.");
+        return location.href = "login.html";
+      }
+
+      currentCabangId = user.id;
+
+      // Total Link
+      const { count: totalLink } = await supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("role", "link")
+        .eq("cabang_id", currentCabangId);
+
+      document.getElementById("totalLink").textContent = totalLink ?? 0;
+
+      // Penjualan Hari Ini
+      const today = new Date().toISOString().split("T")[0];
+      const { data: penjualanHariIni } = await supabase
+        .from("penjualan")
+        .select("id")
+        .gte("tanggal", today)
+        .eq("cabang_id", currentCabangId);
+
+      document.getElementById("totalPenjualan").textContent = penjualanHariIni?.length ?? 0;
+
+      // Ambil semua link di bawah cabang ini
+      const { data: links } = await supabase
+        .from("profiles")
+        .select("id, full_name, created_at")
+        .eq("role", "link")
+        .eq("cabang_id", currentCabangId);
+
+      tampilkanChart(links);
+      tampilkanTabelLink(links);
+    });
+
+    function tampilkanChart(links) {
+      const dateCounts = {};
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        dateCounts[key] = 0;
+      }
+
+      links.forEach(link => {
+        const created = new Date(link.created_at).toISOString().slice(0, 10);
+        if (dateCounts[created] !== undefined) dateCounts[created]++;
+      });
+
+      const labels = Object.keys(dateCounts);
+      const dataPoints = Object.values(dateCounts);
+
+      new Chart(document.getElementById('linkChart'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Link Baru per Hari',
+            data: dataPoints,
+            backgroundColor: 'rgba(75, 192, 192, 0.6)'
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function tampilkanTabelLink(links) {
+      const tbody = document.getElementById('linkTable');
+      tbody.innerHTML = '';
+
+      if (links.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2">Belum ada link</td></tr>';
+        return;
+      }
+
+      links.forEach(link => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${link.full_name || '(Tanpa Nama)'}</td>
+          <td>${Math.floor(Math.random() * 20) + 1}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      await supabase.auth.signOut();
+      location.href = "login.html";
+    });
+  </script>
+</body>
+</html>

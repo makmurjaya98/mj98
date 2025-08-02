@@ -1,0 +1,99 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Penjualan Manual – MJ98</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, select, button {
+      padding: 6px;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h2>📝 Input Penjualan Manual</h2>
+
+  <form id="form-penjualan">
+    <label>
+      Tanggal:
+      <input type="date" id="tanggal" required />
+    </label>
+    <label>
+      Jenis Voucher:
+      <select id="jenis-voucher" required>
+        <option value="">-- Pilih --</option>
+        <option value="1GB">1GB</option>
+        <option value="2GB">2GB</option>
+        <option value="Unlimited">Unlimited</option>
+      </select>
+    </label>
+    <label>
+      Qty:
+      <input type="number" id="qty" min="1" required />
+    </label>
+    <label>
+      Harga Jual per Voucher:
+      <input type="number" id="harga-jual" min="1" required />
+    </label>
+    <button type="submit" style="margin-top: 15px;">💾 Simpan Penjualan</button>
+  </form>
+
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    import { supabaseUrl, supabaseKey } from './config.js';
+    import { cekAksesFitur } from './proteksi-fitur.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    let currentUserId = "";
+
+    cekAksesFitur("penjualan-manual.html");
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = "/login.html";
+      currentUserId = user.id;
+
+      const { data: profile } = await supabase.from("users").select("role").eq("id", currentUserId).single();
+      if (!profile || profile.role !== "link") {
+        alert("Akses ditolak. Halaman ini hanya untuk Link.");
+        return (window.location.href = "/login.html");
+      }
+    });
+
+    document.getElementById("form-penjualan").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const tanggal = document.getElementById("tanggal").value;
+      const jenis = document.getElementById("jenis-voucher").value;
+      const qty = parseInt(document.getElementById("qty").value);
+      const harga_jual = parseInt(document.getElementById("harga-jual").value);
+
+      const total = qty * harga_jual;
+
+      const { error } = await supabase.from("penjualan").insert([{
+        user_id: currentUserId,
+        tanggal,
+        jenis_voucher: jenis,
+        qty,
+        harga_jual,
+        total_harga: total,
+        sumber: "manual"
+      }]);
+
+      if (error) {
+        return Swal.fire("❌ Gagal", "Penjualan gagal disimpan.", "error");
+      }
+
+      Swal.fire("✅ Berhasil", "Data penjualan berhasil disimpan.", "success");
+      document.getElementById("form-penjualan").reset();
+    });
+  </script>
+</body>
+</html>
+

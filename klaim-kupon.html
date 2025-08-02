@@ -1,0 +1,93 @@
+﻿
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Klaim Hadiah – MJ98</title>
+</head>
+<body>
+  <h2>🎁 Klaim Hadiah</h2>
+  <p id="kupon-saya">Memuat sisa kupon...</p>
+
+  <div id="daftar-kupon"></div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    let currentUser = null;
+    let currentRole = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = '/login.html';
+
+      const { data: profile } = await supabase.from('users').select('*').eq('id', user.id).single();
+      if (!profile) {
+        alert("Profil tidak ditemukan.");
+        return location.href = '/login.html';
+      }
+
+      currentUser = profile;
+      currentRole = profile.role;
+      const saldo = profile.kupon_saldo || 0;
+
+      document.getElementById('kupon-saya').textContent = `🎫 Sisa Kupon: ${saldo}`;
+      loadHadiah(saldo, currentRole);
+    });
+
+    async function loadHadiah(saldo, role) {
+      const { data: kupons } = await supabase
+        .from('kupon')
+        .select('*')
+        .eq('aktif', true);
+
+      const container = document.getElementById('daftar-kupon');
+      container.innerHTML = '';
+
+      (kupons || []).forEach(k => {
+        const bisaDiklaim = saldo >= k.jumlah_kupon_dibutuhkan && k.stok > 0;
+        const klaimBtn = (role === 'link' && bisaDiklaim)
+          ? `<button onclick="klaim('${k.id}', ${k.jumlah_kupon_dibutuhkan})">🎁 Klaim</button>`
+          : `<span style="color:gray;">${role === 'link' ? 'Tidak cukup kupon atau stok habis' : 'Hanya Link yang bisa klaim'}</span>`;
+
+        const el = document.createElement('div');
+        el.innerHTML = `
+          <hr />
+          <p><strong>🎁 ${k.nama_hadiah}</strong></p>
+          <p>Butuh Kupon: ${k.jumlah_kupon_dibutuhkan}</p>
+          <p>Stok Tersisa: ${k.stok}</p>
+          ${klaimBtn}
+        `;
+        container.appendChild(el);
+      });
+    }
+
+    // Fungsi hanya dipakai oleh Link
+    window.klaim = async (kuponId, butuh) => {
+      if (currentRole !== 'link') return alert("⛔ Hanya Link yang bisa klaim.");
+
+      if (!confirm('Yakin ingin klaim hadiah ini?')) return;
+
+      const { error: insertError } = await supabase.from('klaim_kupon').insert([{
+        user_id: currentUser.id,
+        kupon_id: kuponId,
+        status: 'pending'
+      }]);
+
+      if (insertError) return alert('❌ Gagal klaim hadiah.');
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ kupon_saldo: currentUser.kupon_saldo - butuh })
+        .eq('id', currentUser.id);
+
+      if (updateError) return alert('❌ Gagal update kupon.');
+
+      alert('✅ Berhasil klaim hadiah. Tunggu verifikasi.');
+      window.location.reload();
+    };
+  </script>
+</body>
+</html>

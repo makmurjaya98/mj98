@@ -1,0 +1,63 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Input Hadiah Kupon – MJ98</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h2>🎁 Input Hadiah Baru untuk Kupon</h2>
+
+  <form id="form-hadiah">
+    <label>Nama Hadiah:
+      <input type="text" id="nama_hadiah" required />
+    </label><br /><br />
+    <label>Deskripsi:
+      <textarea id="deskripsi"></textarea>
+    </label><br /><br />
+    <label>Jumlah Hadiah:
+      <input type="number" id="jumlah" min="1" required />
+    </label><br /><br />
+    <button type="submit">➕ Tambah Hadiah</button>
+  </form>
+
+  <div id="notifikasi" style="margin-top: 20px;"></div>
+
+  <script type="module">
+    import { cekAksesFitur } from './proteksi-fitur.js';
+    import { supabaseUrl, supabaseKey } from './config.js';
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    let currentUser = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await cekAksesFitur("input-hadiah.html");
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return window.location.href = '/login.html';
+      currentUser = user;
+    });
+
+    document.getElementById('form-hadiah').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nama = document.getElementById('nama_hadiah').value;
+      const deskripsi = document.getElementById('deskripsi').value;
+      const jumlah = parseInt(document.getElementById('jumlah').value);
+
+      const { error } = await supabase.from('kupon').insert([{ nama_hadiah: nama, deskripsi, jumlah }]);
+      const notif = document.getElementById('notifikasi');
+
+      if (error) {
+        notif.textContent = '❌ Gagal menambahkan hadiah.';
+        notif.style.color = 'red';
+      } else {
+        notif.textContent = '✅ Hadiah berhasil ditambahkan!';
+        notif.style.color = 'green';
+        document.getElementById('form-hadiah').reset();
+      }
+    });
+  </script>
+</body>
+</html>
+

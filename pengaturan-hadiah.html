@@ -1,0 +1,116 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>🎁 Pengaturan Hadiah – MJ98</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h2>🎁 Pengaturan Hadiah</h2>
+
+  <!-- Form Tambah Hadiah -->
+  <form id="formHadiah" style="margin-bottom: 20px;">
+    <input type="text" id="namaHadiah" placeholder="Nama Hadiah" required />
+    <input type="number" id="stok" placeholder="Stok Hadiah" required />
+    <input type="text" id="jenis" placeholder="Jenis (barang / saldo / lainnya)" required />
+    <button type="submit">➕ Tambah Hadiah</button>
+  </form>
+
+  <!-- Tabel Daftar Hadiah -->
+  <table border="1" style="width: 100%;">
+    <thead>
+      <tr>
+        <th>Nama Hadiah</th>
+        <th>Stok</th>
+        <th>Jenis</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="tabelHadiah"></tbody>
+  </table>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+    import { cekAksesFitur } from './proteksi-fitur.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      // Proteksi Akses
+      await cekAksesFitur("pengaturan-hadiah.html");
+
+      // Cek login user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = "/login.html";
+
+      loadHadiah();
+
+      document.getElementById("formHadiah").addEventListener("submit", tambahHadiah);
+    });
+
+    // Fungsi Load
+    async function loadHadiah() {
+      const { data, error } = await supabase
+        .from("hadiah")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      const tbody = document.getElementById("tabelHadiah");
+      tbody.innerHTML = "";
+
+      if (error || !data) {
+        tbody.innerHTML = "<tr><td colspan='4'>Gagal memuat data hadiah.</td></tr>";
+        return;
+      }
+
+      data.forEach(h => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${h.nama}</td>
+          <td>${h.stok}</td>
+          <td>${h.jenis}</td>
+          <td><button onclick="hapusHadiah('${h.id}')">🗑️ Hapus</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Fungsi Tambah
+    async function tambahHadiah(e) {
+      e.preventDefault();
+      const nama = document.getElementById("namaHadiah").value.trim();
+      const stok = parseInt(document.getElementById("stok").value);
+      const jenis = document.getElementById("jenis").value.trim();
+
+      if (!nama || !jenis || isNaN(stok)) {
+        alert("Isi semua field dengan benar.");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("hadiah")
+        .insert([{ nama, stok, jenis }]);
+
+      if (error) return alert("Gagal menambah hadiah!");
+
+      document.getElementById("formHadiah").reset();
+      loadHadiah();
+    }
+
+    // Fungsi Hapus
+    window.hapusHadiah = async (id) => {
+      if (!confirm("Yakin ingin menghapus hadiah ini?")) return;
+
+      const { error } = await supabase
+        .from("hadiah")
+        .delete()
+        .eq("id", id);
+
+      if (error) return alert("Gagal menghapus hadiah.");
+
+      loadHadiah();
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Daftar Klaim Kupon - MJ98</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h2>📜 Daftar Klaim Hadiah</h2>
+  <div id="klaim-container">Memuat data...</div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    let currentUser = null;
+    let currentRole = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return window.location.href = '/login.html';
+
+      const { data: profile } = await supabase.from('users').select('*').eq('id', user.id).single();
+      if (!profile) return window.location.href = '/login.html';
+
+      currentUser = profile;
+      currentRole = profile.role;
+
+      loadKlaim();
+    });
+
+    async function loadKlaim() {
+      const { data: klaims, error } = await supabase
+        .from('klaim_kupon')
+        .select('id, status, created_at, kupon_id, users(nama_lengkap), kupon(nama_hadiah)')
+        .order('created_at', { ascending: false });
+
+      if (error || !klaims) {
+        document.getElementById('klaim-container').innerHTML = '❌ Gagal memuat klaim.';
+        return;
+      }
+
+      const list = document.createElement('table');
+      list.innerHTML = `
+        <thead>
+          <tr>
+            <th>Nama Link</th>
+            <th>Hadiah</th>
+            <th>Status</th>
+            <th>Tanggal</th>
+            ${['owner', 'admin'].includes(currentRole) ? '<th>Aksi</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${klaims.map(k => {
+            // Hanya tampilkan klaim milik sendiri jika Link
+            if (currentRole === 'link' && k.users?.nama_lengkap !== currentUser.nama_lengkap) return '';
+
+            const aksi = ['owner', 'admin'].includes(currentRole)
+              ? `
+                <button onclick="verifikasi('${k.id}')">✅ Verif</button>
+                <button onclick="hapus('${k.id}')">🗑️ Hapus</button>
+              ` : '';
+
+            return `
+              <tr>
+                <td>${k.users?.nama_lengkap || '-'}</td>
+                <td>${k.kupon?.nama_hadiah || '-'}</td>
+                <td>${k.status}</td>
+                <td>${new Date(k.created_at).toLocaleDateString('id-ID')}</td>
+                ${['owner', 'admin'].includes(currentRole) ? `<td>${aksi}</td>` : ''}
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      `;
+      document.getElementById('klaim-container').innerHTML = '';
+      document.getElementById('klaim-container').appendChild(list);
+    }
+
+    window.verifikasi = async (id) => {
+      if (!['owner', 'admin'].includes(currentRole)) return alert("⛔ Akses ditolak.");
+      if (!confirm("Verifikasi klaim ini?")) return;
+      const { error } = await supabase.from('klaim_kupon').update({ status: 'disetujui' }).eq('id', id);
+      if (error) return alert('❌ Gagal verifikasi.');
+      alert('✅ Verifikasi berhasil');
+      loadKlaim();
+    };
+
+    window.hapus = async (id) => {
+      if (!['owner', 'admin'].includes(currentRole)) return alert("⛔ Akses ditolak.");
+      if (!confirm("Hapus klaim ini?")) return;
+      const { error } = await supabase.from('klaim_kupon').delete().eq('id', id);
+      if (error) return alert('❌ Gagal hapus.');
+      alert('🗑️ Klaim dihapus.');
+      loadKlaim();
+    };
+  </script>
+</body>
+</html>
+

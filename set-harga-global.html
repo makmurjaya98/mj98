@@ -1,0 +1,84 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Set Harga Global Voucher – MJ98</title>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+  <h2>💰 Pengaturan Harga Global Voucher</h2>
+
+  <div id="voucherTableContainer" style="margin-top: 20px;"></div>
+
+  <button id="simpanBtn" style="margin-top: 20px;">💾 Simpan Harga</button>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+    import { cekAksesFitur } from './proteksi-fitur.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    cekAksesFitur("set-harga-global.html");
+
+    let voucherList = [];
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = '/login.html';
+
+      const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single();
+      if (!profile || !['owner', 'admin'].includes(profile.role)) {
+        alert('🚫 Akses ditolak. Hanya Owner atau Admin yang bisa mengakses halaman ini.');
+        return window.location.href = '/dashboard.html';
+      }
+
+      await loadVoucher();
+    });
+
+    async function loadVoucher() {
+      const { data, error } = await supabase.from("voucher").select("*");
+      voucherList = data;
+
+      let html = `
+        <table border="1" cellpadding="5">
+          <tr>
+            <th>Jenis Voucher</th>
+            <th>Harga Pokok</th>
+            <th>Harga Jual</th>
+          </tr>
+      `;
+
+      voucherList.forEach(v => {
+        html += `
+          <tr data-id="${v.id}">
+            <td>${v.jenis}</td>
+            <td><input type="number" class="harga_pokok" value="${v.harga_pokok}" /></td>
+            <td><input type="number" class="harga_jual" value="${v.harga_jual}" /></td>
+          </tr>
+        `;
+      });
+
+      html += `</table>`;
+      document.getElementById("voucherTableContainer").innerHTML = html;
+    }
+
+    document.getElementById("simpanBtn").addEventListener("click", async () => {
+      const rows = document.querySelectorAll("#voucherTableContainer table tr[data-id]");
+
+      for (let row of rows) {
+        const id = row.dataset.id;
+        const harga_pokok = parseInt(row.querySelector(".harga_pokok").value);
+        const harga_jual = parseInt(row.querySelector(".harga_jual").value);
+
+        await supabase.from("voucher").update({
+          harga_pokok, harga_jual
+        }).eq("id", id);
+      }
+
+      Swal.fire("✅ Sukses", "Harga voucher berhasil diperbarui!", "success");
+    });
+  </script>
+</body>
+</html>
+

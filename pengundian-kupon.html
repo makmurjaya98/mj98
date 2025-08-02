@@ -1,0 +1,68 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>🎰 Pengundian Kupon - MJ98</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h2>🎰 Pengundian Kupon Pemenang</h2>
+
+  <button id="undiBtn">🎲 Undi Sekarang</button>
+
+  <div id="hasil" style="margin-top: 30px;"></div>
+
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    import { supabaseUrl, supabaseKey } from "./config.js";
+    import { cekAksesFitur } from "./proteksi-fitur.js";
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const hasilDiv = document.getElementById("hasil");
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await cekAksesFitur("pengundian-kupon.html");
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = "/login.html";
+
+      document.getElementById("undiBtn").addEventListener("click", undiKupon);
+    });
+
+    async function undiKupon() {
+      hasilDiv.innerHTML = "<p>⏳ Sedang mengundi...</p>";
+
+      const { data: kuponList, error } = await supabase
+        .from("kupon")
+        .select("id, kode_kupon, user_id")
+        .eq("status", "belum-diklaim");
+
+      if (error || !kuponList || kuponList.length === 0) {
+        hasilDiv.innerHTML = "<p>❌ Tidak ada kupon yang bisa diundi.</p>";
+        return;
+      }
+
+      const pemenang = kuponList[Math.floor(Math.random() * kuponList.length)];
+
+      const { error: insertError } = await supabase.from("kupon_pemenang").insert({
+        kupon_id: pemenang.id,
+        user_id: pemenang.user_id,
+      });
+
+      if (insertError) {
+        hasilDiv.innerHTML = "<p>⚠️ Gagal menyimpan hasil undian.</p>";
+        return;
+      }
+
+      await supabase.from("kupon").update({ status: "menang" }).eq("id", pemenang.id);
+
+      hasilDiv.innerHTML = `
+        <h3>🎉 Selamat!</h3>
+        <p>Kode Kupon: <strong>${pemenang.kode_kupon}</strong></p>
+        <p>User ID: <strong>${pemenang.user_id}</strong></p>
+        <p>Telah terpilih sebagai pemenang kupon MJ98!</p>
+      `;
+    }
+  </script>
+</body>
+</html>

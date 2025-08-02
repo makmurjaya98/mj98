@@ -1,0 +1,166 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Daftar User - MJ98</title>
+
+  <!-- CDN SheetJS untuk ekspor Excel -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h2>ðŸ“‹ Daftar User</h2>
+
+  <input type="text" id="searchInput" placeholder="ðŸ” Cari nama atau email..." style="width: 300px; padding: 5px; margin-bottom: 10px;">
+  <button id="exportBtn" style="margin-left: 10px;">ðŸ“¤ Ekspor ke Excel</button>
+
+  <table border="1" id="userTable" style="margin-top: 10px;">
+    <thead>
+      <tr>
+        <th>Nama</th>
+        <th>Email</th>
+        <th>Nomor ID</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <p id="statusMsg"></p>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const tbody = document.querySelector('#userTable tbody');
+    const searchInput = document.getElementById('searchInput');
+    const exportBtn = document.getElementById('exportBtn');
+    let allowedUsers = [];
+    let currentUserId = null;
+    let currentUserRole = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      currentUserId = user.id;
+
+      const { data: profile } = await supabase.from('users').select('*').eq('id', user.id).single();
+      if (!profile) {
+        document.body.innerHTML = '<h3>ðŸš« Profil tidak ditemukan.</h3>';
+        return;
+      }
+
+      currentUserRole = profile.role;
+
+      if (currentUserRole === 'owner' || currentUserRole === 'admin') {
+        const { data, error } = await supabase.from('users').select('*');
+        if (error) {
+          document.getElementById('statusMsg').innerText = 'âŒ Gagal mengambil data user.';
+          return;
+        }
+        allowedUsers = data;
+
+      } else if (currentUserRole === 'mitra-cabang') {
+        const { data: cabangs } = await supabase.from('users')
+          .select('*')
+          .eq('role', 'cabang')
+          .eq('parent_id', currentUserId);
+
+        const cabangIds = cabangs.map(c => c.id);
+
+        const { data: links } = await supabase.from('users')
+          .select('*')
+          .eq('role', 'link')
+          .in('parent_id', cabangIds);
+
+        allowedUsers = [...cabangs, ...links];
+
+      } else if (currentUserRole === 'cabang') {
+        const { data: links } = await supabase.from('users')
+          .select('*')
+          .eq('role', 'link')
+          .eq('parent_id', currentUserId);
+
+        allowedUsers = links;
+
+      } else {
+        document.body.innerHTML = '<h3>ðŸš« Akses ditolak.</h3>';
+        return;
+      }
+
+      renderTable(allowedUsers);
+    });
+
+    function renderTable(data) {
+      tbody.innerHTML = '';
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6">Tidak ada user ditemukan.</td></tr>';
+        return;
+      }
+
+      data.forEach(user => {
+        const canDelete = currentUserRole === 'owner' && user.id !== currentUserId;
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${user.nama_lengkap || '-'}</td>
+          <td>${user.email}</td>
+          <td>${user.id_number || '-'}</td>
+          <td>${user.role}</td>
+          <td>${user.status}</td>
+          <td>
+            <a href="edit-user.html?id=${user.id}">âœï¸ Edit</a>
+            ${canDelete ? `<button onclick="hapusUser('${user.id}', '${user.email}')">ðŸ—‘ï¸</button>` : ''}
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    searchInput.addEventListener('input', () => {
+      const keyword = searchInput.value.toLowerCase();
+      const filtered = allowedUsers.filter(user =>
+        (user.nama_lengkap || '').toLowerCase().includes(keyword) ||
+        (user.email || '').toLowerCase().includes(keyword)
+      );
+      renderTable(filtered);
+    });
+
+    window.hapusUser = async (userId, email) => {
+      const konfirmasi = confirm(`Yakin ingin menghapus user:\n${email}?`);
+      if (!konfirmasi) return;
+
+      const { error } = await supabase.from('users').delete().eq('id', userId);
+      if (error) {
+        alert('âŒ Gagal menghapus user');
+      } else {
+        alert('âœ… User berhasil dihapus');
+        allowedUsers = allowedUsers.filter(u => u.id !== userId);
+        renderTable(allowedUsers);
+      }
+    };
+
+    exportBtn.addEventListener('click', () => {
+      const exportData = allowedUsers.map(user => ({
+        Nama: user.nama_lengkap || '',
+        Email: user.email,
+        'Nomor ID': user.id_number || '',
+        Role: user.role,
+        Status: user.status
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'User MJ98');
+      XLSX.writeFile(workbook, 'daftar_user_MJ98.xlsx');
+    });
+  </script>
+</body>
+</html>

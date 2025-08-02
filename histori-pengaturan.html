@@ -1,0 +1,85 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Histori Pengaturan – MJ98</title>
+</head>
+<body>
+  <h2>📜 Histori Perubahan Share & Fee</h2>
+
+  <table border="1" cellpadding="6" style="margin-top: 20px;" id="logTable">
+    <thead>
+      <tr>
+        <th>Tanggal</th>
+        <th>Diubah Oleh</th>
+        <th>Cabang</th>
+        <th>Voucher</th>
+        <th>Jenis</th>
+        <th>Sebelum</th>
+        <th>Sesudah</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+    import { cekAksesFitur } from './proteksi-fitur.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    cekAksesFitur("histori-pengaturan.html");
+
+    let currentRole = '';
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = "/login.html";
+
+      const { data: profile } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      currentRole = profile?.role;
+      if (!['owner', 'admin'].includes(currentRole)) {
+        alert("🚫 Akses ditolak.");
+        return location.href = "/dashboard.html";
+      }
+
+      await loadHistori();
+    });
+
+    async function loadHistori() {
+      const { data: logs } = await supabase
+        .from("log_share_fee")
+        .select(`
+          id, tipe, sebelum, sesudah, tanggal,
+          user:users (nama_lengkap),
+          cabang:users!target_cabang_id_fkey (nama_lengkap),
+          voucher:voucher (nama)
+        `)
+        .order("tanggal", { ascending: false });
+
+      const tbody = document.querySelector("#logTable tbody");
+      tbody.innerHTML = "";
+
+      (logs || []).forEach(item => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${new Date(item.tanggal).toLocaleString('id-ID')}</td>
+          <td>${item.user?.nama_lengkap || '-'}</td>
+          <td>${item.cabang?.nama_lengkap || '-'}</td>
+          <td>${item.voucher?.nama || '-'}</td>
+          <td>${item.tipe}</td>
+          <td>${item.sebelum}</td>
+          <td>${item.sesudah}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+</html>
+

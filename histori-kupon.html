@@ -1,0 +1,87 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Histori Kupon – MJ98</title>
+</head>
+<body>
+  <h2>🎁 Histori Klaim Kupon</h2>
+  <table border="1" cellpadding="6" id="kuponTable" style="margin-top: 20px;">
+    <thead>
+      <tr>
+        <th>Nama Link</th>
+        <th>Nama Kupon</th>
+        <th>Tanggal Klaim</th>
+        <th>Status</th>
+        <th>Catatan</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+    import { cekAksesFitur } from './proteksi-fitur.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    cekAksesFitur("histori-kupon.html");
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = "/login.html";
+
+      const { data: profile } = await supabase
+        .from("users")
+        .select("id, role, parent_id")
+        .eq("id", user.id)
+        .single();
+
+      const role = profile?.role;
+      const userId = profile?.id;
+
+      let query = supabase.from("klaim_kupon").select(`
+        id, tanggal_klaim, status, catatan,
+        kupon:nama_kupon_id (nama),
+        user:users (id, nama_lengkap, parent_id)
+      `).order("tanggal_klaim", { ascending: false });
+
+      // 🔐 Filter berdasarkan role
+      if (role === "link") {
+        query = query.eq("user_id", userId);
+      } else if (role === "cabang") {
+        const { data: links } = await supabase
+          .from("users").select("id").eq("parent_id", userId).eq("role", "link");
+        const linkIds = links.map(l => l.id);
+        query = query.in("user_id", linkIds);
+      } else if (role === "mitra-cabang") {
+        const { data: cabangs } = await supabase
+          .from("users").select("id").eq("parent_id", userId).eq("role", "cabang");
+        const cabangIds = cabangs.map(c => c.id);
+        const { data: links } = await supabase
+          .from("users").select("id").in("parent_id", cabangIds).eq("role", "link");
+        const linkIds = links.map(l => l.id);
+        query = query.in("user_id", linkIds);
+      }
+
+      const { data: klaims } = await query;
+
+      const tbody = document.querySelector("#kuponTable tbody");
+      tbody.innerHTML = "";
+
+      (klaims || []).forEach(klaim => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${klaim.user?.nama_lengkap || '-'}</td>
+          <td>${klaim.kupon?.nama || '-'}</td>
+          <td>${new Date(klaim.tanggal_klaim).toLocaleDateString('id-ID')}</td>
+          <td>${klaim.status}</td>
+          <td>${klaim.catatan || '-'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    });
+  </script>
+</body>
+</html>
+

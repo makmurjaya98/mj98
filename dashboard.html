@@ -1,0 +1,228 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard MJ98</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <style>
+    .stat-card {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin: 10px;
+      display: inline-block;
+      min-width: 150px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h2>📊 Dashboard MJ98</h2>
+
+  <!-- FILTER TANGGAL -->
+  <div style="margin-bottom: 15px;">
+    <label>Dari Tanggal: <input type="date" id="startDate"></label>
+    <label style="margin-left: 10px;">Sampai Tanggal: <input type="date" id="endDate"></label>
+    <button id="filterBtn" style="margin-left: 10px;">🔍 Filter</button>
+  </div>
+
+  <!-- RINGKASAN -->
+  <div id="summary" style="margin-bottom: 20px;" class="hanya-owner hanya-admin"></div>
+
+  <!-- STATISTIK TAMBAHAN -->
+  <div class="stat-card hanya-owner">
+    <h3>Total Penjualan</h3>
+    <p id="total-penjualan">Rp -</p>
+  </div>
+
+  <div class="stat-card hanya-admin">
+    <h3>Voucher Terjual</h3>
+    <p id="voucher-terjual">-</p>
+  </div>
+
+  <!-- GRAFIK -->
+  <canvas id="userChart" width="400" height="200" class="hanya-owner" style="margin-top: 20px;"></canvas>
+
+  <!-- TOP CABANG -->
+  <div style="margin-top: 30px;" class="hanya-owner hanya-admin">
+    <h3>🏢 Top Cabang dengan Link Terbanyak</h3>
+    <table border="1" id="topCabangTable">
+      <thead>
+        <tr>
+          <th>Cabang</th>
+          <th>Jumlah Link</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Aksi Cepat -->
+  <div style="margin-top: 30px;" class="hanya-owner hanya-admin">
+    <h3>⚡ Aksi Cepat</h3>
+    <ul>
+      <li><a href="daftar-user.html">👥 Lihat Daftar User</a></li>
+      <li><a href="laporan-link.html">📈 Laporan Penjualan</a></li>
+      <li><a href="stok.html">📦 Lihat Stok</a></li>
+    </ul>
+  </div>
+
+  <!-- SCRIPT -->
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const roleCount = { owner: 0, admin: 0, 'mitra-cabang': 0, cabang: 0, link: 0 };
+    let users = [];
+    let userChart;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      // 🔐 Proteksi Akses
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return window.location.href = '/login.html';
+
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+      const role = profile?.role;
+
+      if (!profile || !['owner', 'admin'].includes(role)) {
+        document.body.innerHTML = '<h3>🚫 Akses ditolak. Halaman ini hanya untuk Owner atau Admin.</h3>';
+        return;
+      }
+
+      // 🔒 Proteksi Elemen UI Berdasarkan Role
+      if (role !== "owner") {
+        document.querySelectorAll(".hanya-owner").forEach(el => el.style.display = "none");
+      }
+      if (role !== "admin") {
+        document.querySelectorAll(".hanya-admin").forEach(el => el.style.display = "none");
+      }
+
+      // Ambil semua user
+      const { data } = await supabase.from('profiles').select('id, role, created_at, parent_id, full_name');
+      users = data || [];
+
+      // Ringkasan per role
+      users.forEach(u => {
+        if (roleCount[u.role] !== undefined) roleCount[u.role]++;
+      });
+
+      document.getElementById('summary').innerHTML = `
+        <p>📮 Owner: ${roleCount.owner}</p>
+        <p>🛡️ Admin: ${roleCount.admin}</p>
+        <p>🧑‍💼 Mitra Cabang: ${roleCount['mitra-cabang']}</p>
+        <p>🏢 Cabang: ${roleCount.cabang}</p>
+        <p>👨‍💻 Link: ${roleCount.link}</p>
+      `;
+
+      drawChartDefault();
+      tampilkanTopCabang();
+
+      if (role === 'owner') {
+        document.getElementById("total-penjualan").textContent = "Rp 5.000.000";
+      }
+      if (role === 'admin') {
+        document.getElementById("voucher-terjual").textContent = "120";
+      }
+    });
+
+    function drawChartDefault() {
+      const now = new Date();
+      const dateCounts = {};
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        dateCounts[key] = 0;
+      }
+
+      users.forEach(u => {
+        const d = new Date(u.created_at).toISOString().slice(0, 10);
+        if (dateCounts[d] !== undefined) dateCounts[d]++;
+      });
+
+      const labels = Object.keys(dateCounts);
+      const dataPoints = Object.values(dateCounts);
+
+      const ctx = document.getElementById('userChart');
+      userChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'User Baru per Hari',
+            data: dataPoints,
+            backgroundColor: 'rgba(54, 162, 235, 0.7)'
+          }]
+        },
+        options: {
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    // FILTER TANGGAL
+    document.getElementById('filterBtn').addEventListener('click', () => {
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+      if (!start || !end) return alert('Pilih tanggal awal dan akhir.');
+
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      const dateCounts = {};
+
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const key = d.toISOString().slice(0, 10);
+        dateCounts[key] = 0;
+      }
+
+      users.forEach(u => {
+        const key = new Date(u.created_at).toISOString().slice(0, 10);
+        if (dateCounts[key] !== undefined) dateCounts[key]++;
+      });
+
+      const labels = Object.keys(dateCounts);
+      const dataPoints = Object.values(dateCounts);
+
+      userChart.data.labels = labels;
+      userChart.data.datasets[0].data = dataPoints;
+      userChart.update();
+    });
+
+    function tampilkanTopCabang() {
+      const cabangs = users.filter(u => u.role === 'cabang');
+      const links = users.filter(u => u.role === 'link');
+
+      const linkCount = {};
+      links.forEach(link => {
+        if (link.parent_id) {
+          linkCount[link.parent_id] = (linkCount[link.parent_id] || 0) + 1;
+        }
+      });
+
+      const cabangList = cabangs.map(cabang => ({
+        nama: cabang.full_name || '(Tanpa Nama)',
+        jumlah_link: linkCount[cabang.id] || 0
+      }));
+
+      cabangList.sort((a, b) => b.jumlah_link - a.jumlah_link);
+
+      const tbody = document.querySelector('#topCabangTable tbody');
+      tbody.innerHTML = '';
+
+      if (cabangList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2">Belum ada data cabang</td></tr>';
+        return;
+      }
+
+      cabangList.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${row.nama}</td><td>${row.jumlah_link}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+</html>

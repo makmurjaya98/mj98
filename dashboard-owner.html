@@ -1,0 +1,81 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard MJ98</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module" src="dashboard-owner.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+      background-color: #f5f5f5;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .stat-card {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin: 10px;
+      display: inline-block;
+      min-width: 150px;
+      text-align: center;
+      background-color: white;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h2>📊 Dashboard MJ98</h2>
+
+  <!-- FILTER TANGGAL -->
+  <div style="margin-bottom: 15px;">
+    <label>Dari Tanggal: <input type="date" id="startDate"></label>
+    <label style="margin-left: 10px;">Sampai Tanggal: <input type="date" id="endDate"></label>
+    <button id="filterBtn" style="margin-left: 10px;">🔍 Filter</button>
+  </div>
+
+  <!-- RINGKASAN -->
+  <div id="summary" style="margin-bottom: 20px;" class="hanya-owner hanya-admin"></div>
+
+  <!-- STATISTIK TAMBAHAN -->
+  <div class="stat-card hanya-owner">
+    <h3>Total Penjualan</h3>
+    <p id="total-penjualan">Rp -</p>
+  </div>
+
+  <div class="stat-card hanya-admin">
+    <h3>Voucher Terjual</h3>
+    <p id="voucher-terjual">-</p>
+  </div>
+
+  <!-- GRAFIK -->
+  <canvas id="userChart" width="400" height="200" class="hanya-owner" style="margin-top: 20px;"></canvas>
+
+  <!-- TOP CABANG -->
+  <div style="margin-top: 30px;" class="hanya-owner hanya-admin">
+    <h3>🏢 Top Cabang dengan Link Terbanyak</h3>
+    <table border="1" id="topCabangTable">
+      <thead>
+        <tr>
+          <th>Cabang</th>
+          <th>Jumlah Link</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Aksi Cepat -->
+  <div style="margin-top: 30px;" class="hanya-owner hanya-admin">
+    <h3>⚡ Aksi Cepat</h3>
+    <ul>
+      <li><a href="daftar-user.html">👥 Lihat Daftar User</a></li>
+      <li><a href="laporan-link.html">📈 Laporan Penjualan</a></li>
+      <li><a href="stok.html">📦 Lihat Stok</a></li>
+    </ul>
+  </div>
+</body>
+</html>

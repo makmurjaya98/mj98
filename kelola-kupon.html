@@ -1,0 +1,76 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>🎫 Kelola Kupon - MJ98</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h2>🎫 Kelola Semua Kupon</h2>
+
+  <table border="1" style="width: 100%; margin-top: 20px;">
+    <thead>
+      <tr>
+        <th>Kode Kupon</th>
+        <th>Status</th>
+        <th>Link Pemilik</th>
+        <th>Tanggal Dibuat</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="kuponTable"></tbody>
+  </table>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+    import { cekAksesFitur } from './proteksi-fitur.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await cekAksesFitur("kelola-kupon.html");
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = "/login.html";
+
+      const { data: kupons, error } = await supabase
+        .from("kupon")
+        .select("*, users(nama_lengkap)")
+        .order("created_at", { ascending: false });
+
+      const tbody = document.getElementById("kuponTable");
+      tbody.innerHTML = "";
+
+      if (error || !kupons || kupons.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='5'>Belum ada kupon</td></tr>";
+        return;
+      }
+
+      kupons.forEach(k => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${k.kode_kupon}</td>
+          <td>${k.status}</td>
+          <td>${k.users?.nama_lengkap || "-"}</td>
+          <td>${new Date(k.created_at).toLocaleString("id-ID")}</td>
+          <td>
+            ${k.status === "belum-diklaim"
+              ? `<button onclick="hapusKupon('${k.id}')">🗑️ Hapus</button>`
+              : `<span>-</span>`}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    });
+
+    // Fungsi hapus kupon
+    window.hapusKupon = async (id) => {
+      if (!confirm("Yakin ingin menghapus kupon ini?")) return;
+      const { error } = await supabase.from("kupon").delete().eq("id", id);
+      if (error) return alert("Gagal menghapus kupon!");
+      location.reload();
+    };
+  </script>
+</body>
+</html>

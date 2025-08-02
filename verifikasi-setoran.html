@@ -1,0 +1,141 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Verifikasi Setoran – MJ98</title>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+  <h2>✅ Verifikasi Setoran Link</h2>
+
+  <table border="1" cellpadding="6" style="margin-top: 20px;" id="setoranTable">
+    <thead>
+      <tr>
+        <th>Nama Link</th>
+        <th>Cabang</th>
+        <th>Total Penjualan</th>
+        <th>Total Setoran</th>
+        <th>Status</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+    import { cekAksesFitur } from './proteksi-fitur.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    cekAksesFitur("verifikasi-setoran.html");
+
+    let currentRole = '';
+    let currentUserId = '';
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = '/login.html';
+      currentUserId = user.id;
+
+      const { data: profile } = await supabase
+        .from('users')
+        .select('role, id, parent_id')
+        .eq('id', user.id)
+        .single();
+
+      currentRole = profile?.role;
+
+      if (!['owner', 'admin', 'mitra-cabang', 'cabang', 'link'].includes(currentRole)) {
+        alert("🚫 Akses ditolak.");
+        return location.href = '/dashboard.html';
+      }
+
+      await loadDataSetoran();
+    });
+
+    async function loadDataSetoran() {
+      let query = supabase
+        .from('setoran')
+        .select(`
+          id, user_id, total_penjualan, total_setoran, status,
+          user:users (id, nama_lengkap, parent_id),
+          cabang:users!user_parent_id_fkey (id, nama_lengkap, parent_id)
+        `);
+
+      if (currentRole === 'mitra-cabang') {
+        const { data: cabangs } = await supabase
+          .from('users')
+          .select('id')
+          .eq('role', 'cabang')
+          .eq('parent_id', currentUserId);
+        const cabangIds = cabangs.map(c => c.id);
+
+        const { data: links } = await supabase
+          .from('users')
+          .select('id')
+          .in('parent_id', cabangIds);
+        const linkIds = links.map(l => l.id);
+        query = query.in('user_id', linkIds);
+
+      } else if (currentRole === 'cabang') {
+        const { data: links } = await supabase
+          .from('users')
+          .select('id')
+          .eq('parent_id', currentUserId);
+        const linkIds = links.map(l => l.id);
+        query = query.in('user_id', linkIds);
+
+      } else if (currentRole === 'link') {
+        query = query.eq('user_id', currentUserId);
+      }
+
+      const { data: setoranList } = await query;
+      tampilkanSetoran(setoranList);
+    }
+
+    function tampilkanSetoran(setoranList) {
+      const tbody = document.querySelector("#setoranTable tbody");
+      tbody.innerHTML = "";
+
+      (setoranList || []).forEach(item => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${item.user?.nama_lengkap || '-'}</td>
+          <td>${item.cabang?.nama_lengkap || '-'}</td>
+          <td>Rp${item.total_penjualan.toLocaleString()}</td>
+          <td>Rp${item.total_setoran.toLocaleString()}</td>
+          <td>${item.status}</td>
+          <td>
+            ${['owner', 'admin'].includes(currentRole) && item.status !== '✅ Diverifikasi'
+              ? `<button onclick="verifikasi('${item.id}')">Verifikasi</button>`
+              : '✔'}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    window.verifikasi = async function (id) {
+      const konfirmasi = await Swal.fire({
+        title: 'Yakin ingin verifikasi?',
+        text: 'Setoran ini akan dianggap sah.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, verifikasi!',
+        cancelButtonText: 'Batal'
+      });
+
+      if (konfirmasi.isConfirmed) {
+        await supabase
+          .from("setoran")
+          .update({ status: '✅ Diverifikasi' })
+          .eq("id", id);
+
+        Swal.fire("Sukses", "Setoran telah diverifikasi!", "success");
+        await loadDataSetoran();
+      }
+    }
+  </script>
+</body>
+</html>

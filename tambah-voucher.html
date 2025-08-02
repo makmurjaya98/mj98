@@ -1,0 +1,92 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tambah Voucher â€“ MJ98</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    label {
+      display: block;
+      margin-top: 12px;
+    }
+    input, textarea, button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+    }
+    form {
+      max-width: 400px;
+    }
+  </style>
+</head>
+<body>
+  <h2>âž• Tambah Voucher Baru</h2>
+
+  <form id="voucherForm">
+    <label>Jenis Voucher:
+      <input type="text" id="jenis" required />
+    </label>
+    <label>Deskripsi:
+      <textarea id="deskripsi" rows="3"></textarea>
+    </label>
+    <label>Harga Pokok:
+      <input type="number" id="harga_pokok" min="1" required />
+    </label>
+    <label>Harga Jual:
+      <input type="number" id="harga_jual" min="1" required />
+    </label>
+    <button type="submit" style="margin-top: 15px;">ðŸ’¾ Simpan</button>
+  </form>
+
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    import { supabaseUrl, supabaseKey } from './config.js';
+    import { cekAksesFitur } from './proteksi-fitur.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    let currentUserId = "";
+
+    cekAksesFitur("tambah-voucher.html");
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = "/login.html";
+
+      currentUserId = user.id;
+
+      const { data: profile } = await supabase.from("users").select("role").eq("id", currentUserId).single();
+      const role = profile?.role;
+
+      if (!["owner", "admin", "mitra-cabang"].includes(role)) {
+        alert("ðŸš« Akses ditolak. Hanya Owner, Admin, atau Mitra yang boleh menambah voucher.");
+        return window.location.href = "/dashboard.html";
+      }
+    });
+
+    document.getElementById("voucherForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const jenis = document.getElementById("jenis").value.trim();
+      const deskripsi = document.getElementById("deskripsi").value.trim();
+      const harga_pokok = parseInt(document.getElementById("harga_pokok").value);
+      const harga_jual = parseInt(document.getElementById("harga_jual").value);
+
+      if (harga_jual < harga_pokok) {
+        return Swal.fire("âš ï¸ Invalid", "Harga jual tidak boleh lebih rendah dari harga pokok!", "warning");
+      }
+
+      const { error } = await supabase.from("voucher").insert([{
+        jenis, deskripsi, harga_pokok, harga_jual
+      }]);
+
+      if (error) {
+        return Swal.fire("âŒ Gagal", "Gagal menambahkan voucher baru.", "error");
+      }
+
+      Swal.fire("âœ… Sukses", "Voucher berhasil ditambahkan!", "success");
+      document.getElementById("voucherForm").reset();
+    });
+  </script>
+</body>
+</html>

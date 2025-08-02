@@ -1,0 +1,143 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pengaturan Share Harga – MJ98</title>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+  <h2>⚙️ Pengaturan Share Harga & Komisi</h2>
+
+  <label>Pilih Cabang:
+    <select id="cabangSelect"></select>
+  </label>
+
+  <div id="voucherTableContainer" style="margin-top: 20px;"></div>
+
+  <button id="simpanBtn" style="margin-top: 20px;">💾 Simpan Semua</button>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+    import { cekAksesFitur } from './proteksi-fitur.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    let voucherList = [];
+
+    // 🔒 Proteksi akses fitur (opsional jika pakai sistem Supabase juga)
+    cekAksesFitur("pengaturan-share.html");
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = '/login.html';
+
+      const { data: profile } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      // 🔐 Hanya Owner dan Admin yang bisa akses
+      if (!profile || !['owner', 'admin'].includes(profile.role)) {
+        alert('🚫 Akses ditolak. Hanya Owner atau Admin yang bisa mengakses halaman ini.');
+        return window.location.href = '/dashboard.html';
+      }
+
+      await loadCabang();
+      await loadVoucher();
+    });
+
+    async function loadCabang() {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, nama_lengkap")
+        .eq("role", "cabang");
+
+      const select = document.getElementById("cabangSelect");
+      data.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.nama_lengkap || '(Tanpa Nama)';
+        select.appendChild(opt);
+      });
+
+      select.addEventListener("change", renderVoucherTable);
+    }
+
+    async function loadVoucher() {
+      const { data, error } = await supabase
+        .from("voucher")
+        .select("*");
+      voucherList = data;
+      renderVoucherTable();
+    }
+
+    async function renderVoucherTable() {
+      const cabangId = document.getElementById("cabangSelect").value;
+      if (!cabangId) return;
+
+      const { data: pengaturan } = await supabase
+        .from("voucher_setting")
+        .select("*")
+        .eq("cabang_id", cabangId);
+
+      const mapSetting = {};
+      pengaturan.forEach(p => {
+        mapSetting[p.voucher_id] = p;
+      });
+
+      let html = `
+        <table border="1" cellpadding="5" style="margin-top: 10px;">
+          <tr>
+            <th>Jenis Voucher</th>
+            <th>Harga Pokok</th>
+            <th>Harga Jual</th>
+            <th>Share Cabang</th>
+            <th>Fee Cabang</th>
+            <th>Komisi Mitra</th>
+          </tr>
+      `;
+
+      voucherList.forEach(v => {
+        const set = mapSetting[v.id] || {};
+        html += `
+          <tr data-voucher="${v.id}">
+            <td>${v.jenis}</td>
+            <td>${v.harga_pokok}</td>
+            <td>${v.harga_jual}</td>
+            <td><input type="number" class="share" value="${set.share_cabang || 0}" /></td>
+            <td><input type="number" class="fee" value="${set.fee_cabang || 0}" /></td>
+            <td><input type="number" class="komisi" value="${set.komisi_mitra || 0}" /></td>
+          </tr>
+        `;
+      });
+
+      html += `</table>`;
+      document.getElementById("voucherTableContainer").innerHTML = html;
+    }
+
+    document.getElementById("simpanBtn").addEventListener("click", async () => {
+      const cabangId = document.getElementById("cabangSelect").value;
+      const rows = document.querySelectorAll("#voucherTableContainer table tr[data-voucher]");
+
+      for (let row of rows) {
+        const voucherId = row.dataset.voucher;
+        const share = parseInt(row.querySelector(".share").value);
+        const fee = parseInt(row.querySelector(".fee").value);
+        const komisi = parseInt(row.querySelector(".komisi").value);
+
+        await supabase.from("voucher_setting").upsert({
+          cabang_id: cabangId,
+          voucher_id: voucherId,
+          share_cabang: share,
+          fee_cabang: fee,
+          komisi_mitra: komisi
+        }, { onConflict: ['voucher_id', 'cabang_id'] });
+      }
+
+      Swal.fire("✅ Sukses", "Pengaturan berhasil disimpan!", "success");
+    });
+  </script>
+</body>
+</html>
+

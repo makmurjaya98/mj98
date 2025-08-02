@@ -1,0 +1,67 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Laporan Penjualan Link – MJ98</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      font-size: 14px;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .btn {
+      margin: 10px 5px;
+      padding: 8px 14px;
+      background-color: green;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h2>Laporan Penjualan Link</h2>
+
+  <input type="date" id="filter-start" />
+  <input type="date" id="filter-end" />
+  <button class="btn" onclick="filterTanggal()">🔍 Filter</button>
+  <button class="btn" onclick="exportExcel()">📥 Ekspor Excel</button>
+  <button id="btn-konfirmasi" class="btn hanya-link" onclick="konfirmasiSetoran()">✅ Konfirmasi Setoran</button>
+
+  <table id="laporan-link-table">
+    <thead>
+      <tr>
+        <th>Link</th>
+        <th>Qty</th>
+        <th>Harga Pokok</th>
+        <th>Total Pokok</th>
+        <th>Share Harga</th>
+        <th>Total Share</th>
+        <th>Fee Link</th>
+        <th>Fee Cabang</th>
+        <th>Komisi Mitra</th>
+        <th>Pendapatan Link</th>
+        <th>Total Setoran</th>
+        <th>Status</th>
+        <th>Tanggal</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Inisialisasi Supabase -->
+  <script type="module" src="/js/supabase-init.js"></script>
+  <!-- Script utama -->
+  <script type="module" src="/js/laporan-link.js"></script>
+</body>
+</html>

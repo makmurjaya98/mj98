@@ -1,0 +1,114 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Edit Data User - MJ98</title>
+  <script type="module" src="edit-user.js"></script>
+</head>
+<body>
+  <h2>Edit Data User</h2>
+
+  <form id="editUserForm" style="display:none;">
+    <input type="hidden" id="user_id" />
+
+    <label>Nama Lengkap</label><br>
+    <input type="text" id="nama_lengkap" required><br><br>
+
+    <label>Email</label><br>
+    <input type="email" id="email" readonly><br><br>
+
+    <label>Nomor ID</label><br>
+    <input type="text" id="id_number"><br><br>
+
+    <label>Role</label><br>
+    <select id="role">
+      <option value="owner">Owner</option>
+      <option value="admin">Admin</option>
+      <option value="mitra-cabang">Mitra Cabang</option>
+      <option value="cabang">Cabang</option>
+      <option value="link">Link</option>
+    </select><br><br>
+
+    <label>Status</label><br>
+    <select id="status">
+      <option value="aktif">Aktif</option>
+      <option value="nonaktif">Nonaktif</option>
+    </select><br><br>
+
+    <button type="submit">ðŸ’¾ Simpan Perubahan</button>
+  </form>
+
+  <p id="statusMsg"></p>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    async function checkAccess() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single();
+      const allowed = ['owner', 'admin'];
+      if (!profile || !allowed.includes(profile.role)) {
+        document.body.innerHTML = '<h3>ðŸš« Akses ditolak. Halaman ini hanya untuk Owner atau Admin.</h3>';
+        throw new Error("Unauthorized");
+      }
+    }
+
+    async function loadUserData(userId) {
+      const { data, error } = await supabase.from('users').select('*').eq('id', userId).single();
+      if (error || !data) {
+        document.getElementById('statusMsg').innerText = "âŒ Gagal ambil data user.";
+        return;
+      }
+
+      document.getElementById('editUserForm').style.display = 'block';
+      document.getElementById('user_id').value = data.id;
+      document.getElementById('nama_lengkap').value = data.nama_lengkap || '';
+      document.getElementById('email').value = data.email || '';
+      document.getElementById('id_number').value = data.id_number || '';
+      document.getElementById('role').value = data.role || '';
+      document.getElementById('status').value = data.status || 'aktif';
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        await checkAccess();
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('id');
+        if (!userId) {
+          document.getElementById('statusMsg').innerText = "âŒ ID user tidak ditemukan di URL.";
+          return;
+        }
+        await loadUserData(userId);
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    document.getElementById('editUserForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const updates = {
+        nama_lengkap: document.getElementById('nama_lengkap').value,
+        id_number: document.getElementById('id_number').value,
+        role: document.getElementById('role').value,
+        status: document.getElementById('status').value,
+      };
+
+      const { error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', document.getElementById('user_id').value);
+
+      document.getElementById('statusMsg').innerText = error ? "âŒ Gagal update data." : "âœ… Data berhasil diperbarui.";
+    });
+  </script>
+</body>
+</html>

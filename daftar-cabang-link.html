@@ -1,0 +1,106 @@
+﻿<script type="module"> import { cekAksesFitur } from "./proteksi-fitur.js"; document.addEventListener("DOMContentLoaded", () => { cekAksesFitur("daftar-cabang-link.html"); }); </script>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Form Pendaftaran Cabang & Link - MJ98</title>
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f8f8f8; }
+    h2 { color: #333; }
+    label { display: block; margin-top: 10px; }
+    input, select { padding: 8px; width: 300px; }
+    button { margin-top: 15px; padding: 10px 20px; background: green; color: white; border: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>ðŸ§© Form Pendaftaran Cabang</h2>
+  <label for="email-cabang">Email Cabang:</label>
+  <input type="email" id="email-cabang" required />
+
+  <label for="password-cabang">Password:</label>
+  <input type="password" id="password-cabang" required />
+
+  <label for="nama-cabang">Nama Cabang:</label>
+  <input type="text" id="nama-cabang" required />
+
+  <label for="mitra-id">ID Mitra-Cabang:</label>
+  <input type="text" id="mitra-id" required />
+
+  <button onclick="daftarCabang()">Daftarkan Cabang</button>
+
+  <h2 style="margin-top:50px">ðŸ§© Form Pendaftaran Link</h2>
+  <label for="email-link">Email Link:</label>
+  <input type="email" id="email-link" required />
+
+  <label for="password-link">Password:</label>
+  <input type="password" id="password-link" required />
+
+  <label for="nama-link">Nama Link:</label>
+  <input type="text" id="nama-link" required />
+
+  <label for="cabang-id">ID Cabang:</label>
+  <input type="text" id="cabang-id" required />
+
+  <button onclick="daftarLink()">Daftarkan Link</button>
+
+  <script>
+    const supabase = supabase.createClient(
+      'https://mguxpcbskqxnbpbuhdjj.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ndXhwY2Jza3F4bmJwYnVoZGpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyMzU1MDEsImV4cCI6MjA2ODgxMTUwMX0.MujhdOQF_aSUWX7XJkQ0ybMNtTPsO-FZggg4DYSHFYY'
+    );
+
+    async function daftarCabang() {
+      const email = document.getElementById('email-cabang').value;
+      const password = document.getElementById('password-cabang').value;
+      const nama = document.getElementById('nama-cabang').value;
+      const mitra_id = document.getElementById('mitra-id').value;
+
+      const { data, error } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        user_metadata: { nama, role: 'cabang' },
+      });
+
+      if (error) return alert('âŒ Gagal daftar Cabang: ' + error.message);
+
+      const { error: err2 } = await supabase.from('profiles').insert({
+        id: data.user.id,
+        email,
+        nama,
+        role: 'cabang',
+        id_mitra: mitra_id
+      });
+
+      if (err2) alert('âŒ Gagal simpan profil cabang: ' + err2.message);
+      else alert('âœ… Cabang berhasil didaftarkan!');
+    }
+
+    async function daftarLink() {
+      const email = document.getElementById('email-link').value;
+      const password = document.getElementById('password-link').value;
+      const nama = document.getElementById('nama-link').value;
+      const cabang_id = document.getElementById('cabang-id').value;
+
+      const { data, error } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        user_metadata: { nama, role: 'link' },
+      });
+
+      if (error) return alert('âŒ Gagal daftar Link: ' + error.message);
+
+      const { error: err2 } = await supabase.from('profiles').insert({
+        id: data.user.id,
+        email,
+        nama,
+        role: 'link',
+        id_cabang: cabang_id
+      });
+
+      if (err2) alert('âŒ Gagal simpan profil link: ' + err2.message);
+      else alert('âœ… Link berhasil didaftarkan!');
+    }
+  </script>
+</body>
+</html>

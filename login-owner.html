@@ -1,0 +1,66 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login Owner MJ98</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h2>🔐 Login Khusus Owner MJ98</h2>
+  <form id="login-form" style="max-width: 300px; margin: auto;">
+    <input type="email" id="email" placeholder="Email" required style="width: 100%; margin-bottom: 10px;" />
+    <input type="password" id="password" placeholder="Password" required style="width: 100%; margin-bottom: 10px;" />
+    <button type="submit" style="width: 100%;">Login</button>
+  </form>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    const supabase = createClient(
+      'https://mguxpcbskqxnbpbuhdjj.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ndXhwY2Jza3F4bmJwYnVoZGpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyMzU1MDEsImV4cCI6MjA2ODgxMTUwMX0.MujhdOQF_aSUWX7XJkQ0ybMNtTPsO-FZggg4DYSHFYY'
+    );
+
+    const loginForm = document.getElementById('login-form');
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        alert('âŒ Login gagal: ' + error.message);
+        return;
+      }
+
+      const { user } = data;
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        alert('âš ï¸ Gagal mengambil data profil!');
+        await supabase.auth.signOut();
+        return;
+      }
+
+      if (profile.role === 'owner') {
+        alert('âœ… Login berhasil sebagai Owner!');
+        localStorage.setItem("user", JSON.stringify(user));
+        window.location.href = 'dashboard-owner.html';
+      } else {
+        alert('ðŸš« Kamu bukan Owner. Akses ditolak!');
+        await supabase.auth.signOut();
+      }
+    });
+  </script>
+</body>
+</html>

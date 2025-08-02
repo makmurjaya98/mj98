@@ -1,0 +1,116 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Rekap Pendapatan – MJ98</title>
+</head>
+<body>
+  <h2>💰 Rekap Pendapatan</h2>
+
+  <div>
+    <label>Dari: <input type="date" id="filter-start" /></label>
+    <label>Sampai: <input type="date" id="filter-end" /></label>
+    <button onclick="loadPendapatan()">🔍 Filter</button>
+  </div>
+
+  <table border="1" cellpadding="6" id="rekapTable" style="margin-top: 20px;">
+    <thead>
+      <tr>
+        <th>Link</th>
+        <th>Qty</th>
+        <th>Harga Jual</th>
+        <th>Harga Pokok</th>
+        <th>Total Penjualan</th>
+        <th>Share</th>
+        <th>Fee Link</th>
+        <th>Fee Cabang</th>
+        <th>Komisi Mitra</th>
+        <th>Pendapatan Link</th>
+        <th>Setoran ke Owner</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    import { supabaseUrl, supabaseKey } from './config.js';
+    import { cekAksesFitur } from './proteksi-fitur.js';
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    cekAksesFitur("rekap-pendapatan.html");
+
+    document.addEventListener("DOMContentLoaded", loadPendapatan);
+    document.getElementById("filter-start").addEventListener("change", loadPendapatan);
+    document.getElementById("filter-end").addEventListener("change", loadPendapatan);
+
+    async function loadPendapatan() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return location.href = "/login.html";
+
+      const { data: profile } = await supabase
+        .from("users").select("id, role, parent_id").eq("id", user.id).single();
+
+      let query = supabase.from("penjualan").select(`
+        id, user_id, qty, harga_jual, harga_pokok, share_harga,
+        fee_link, fee_cabang, komisi_mitra, tanggal,
+        user:users (nama_lengkap, parent_id)
+      `);
+
+      const start = document.getElementById("filter-start").value;
+      const end = document.getElementById("filter-end").value;
+
+      if (start) query = query.gte("tanggal", start);
+      if (end) query = query.lte("tanggal", end);
+
+      // 🔐 Filter berdasarkan role
+      if (profile.role === "link") {
+        query = query.eq("user_id", profile.id);
+      } else if (profile.role === "cabang") {
+        const { data: links } = await supabase.from("users").select("id").eq("parent_id", profile.id).eq("role", "link");
+        const linkIds = links.map(l => l.id);
+        query = query.in("user_id", linkIds);
+      } else if (profile.role === "mitra-cabang") {
+        const { data: cabangs } = await supabase.from("users").select("id").eq("parent_id", profile.id).eq("role", "cabang");
+        const cabangIds = cabangs.map(c => c.id);
+        const { data: links } = await supabase.from("users").select("id").in("parent_id", cabangIds).eq("role", "link");
+        const linkIds = links.map(l => l.id);
+        query = query.in("user_id", linkIds);
+      }
+
+      const { data: hasil } = await query;
+
+      const tbody = document.querySelector("#rekapTable tbody");
+      tbody.innerHTML = "";
+
+      (hasil || []).forEach(item => {
+        const totalJual = item.qty * item.harga_jual;
+        const totalPokok = item.qty * item.harga_pokok;
+        const totalShare = item.qty * (item.share_harga || 0);
+        const totalFeeLink = item.qty * (item.fee_link || 0);
+        const totalFeeCabang = item.qty * (item.fee_cabang || 0);
+        const totalKomisiMitra = item.qty * (item.komisi_mitra || 0);
+        const pendapatanLink = totalJual - totalPokok - totalShare;
+        const setoranOwner = totalPokok - totalFeeLink - totalFeeCabang - totalKomisiMitra;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${item.user?.nama_lengkap || "-"}</td>
+          <td>${item.qty}</td>
+          <td>${item.harga_jual}</td>
+          <td>${item.harga_pokok}</td>
+          <td>${totalJual}</td>
+          <td>${totalShare}</td>
+          <td>${totalFeeLink}</td>
+          <td>${totalFeeCabang}</td>
+          <td>${totalKomisiMitra}</td>
+          <td>${pendapatanLink}</td>
+          <td>${setoranOwner}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,104 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Set Komisi & Fee – MJ98</title>
+</head>
+<body>
+  <h2>⚙️ Pengaturan Komisi & Fee</h2>
+
+  <div style="margin-bottom: 20px;">
+    <label>Filter Role: 
+      <select id="filter-role">
+        <option value="mitra-cabang">Mitra Cabang</option>
+        <option value="cabang">Cabang</option>
+        <option value="link">Link</option>
+      </select>
+    </label>
+    <button onclick="loadData()">🔍 Tampilkan</button>
+  </div>
+
+  <table border="1" cellpadding="6" id="tabelKomisi">
+    <thead>
+      <tr>
+        <th>Nama</th>
+        <th>Role</th>
+        <th>Komisi / Fee (%)</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    import { supabaseUrl, supabaseKey } from "./config.js";
+    import { cekAksesFitur } from "./proteksi-fitur.js";
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    cekAksesFitur("set-komisi.html");
+
+    let currentRole = "";
+
+    async function loadData() {
+      const role = document.getElementById("filter-role").value;
+      currentRole = role;
+
+      const { data: users } = await supabase
+        .from("users")
+        .select("id, nama_lengkap")
+        .eq("role", role);
+
+      const { data: settings } = await supabase
+        .from("komisi_setting")
+        .select("*")
+        .eq("role", role);
+
+      const tbody = document.querySelector("#tabelKomisi tbody");
+      tbody.innerHTML = "";
+
+      (users || []).forEach(user => {
+        const setting = settings.find(s => s.user_id === user.id);
+        const persen = setting?.komisi_persen || setting?.fee_persen || 0;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${user.nama_lengkap}</td>
+          <td>${role}</td>
+          <td><input type="number" min="0" max="100" step="0.1" value="${persen}" id="input-${user.id}" /></td>
+          <td><button onclick="simpan('${user.id}')">💾 Simpan</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    window.simpan = async function(userId) {
+      const nilai = parseFloat(document.getElementById("input-" + userId).value);
+      const kolom = currentRole === "mitra-cabang" ? "komisi_persen" : "fee_persen";
+
+      const { data: existing } = await supabase
+        .from("komisi_setting")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("role", currentRole)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from("komisi_setting")
+          .update({ [kolom]: nilai })
+          .eq("id", existing.id);
+      } else {
+        await supabase
+          .from("komisi_setting")
+          .insert([{ user_id: userId, role: currentRole, [kolom]: nilai }]);
+      }
+
+      alert("✅ Komisi/Fee berhasil disimpan!");
+    };
+
+    document.addEventListener("DOMContentLoaded", loadData);
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,238 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard Link – MJ98</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f2f4f8;
+      padding: 20px;
+      margin: 0;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      flex: 1 1 200px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .card h2 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .card p {
+      font-size: 18px;
+      margin: 0;
+    }
+
+    canvas {
+      margin: 40px auto;
+      display: block;
+      max-width: 600px;
+      background: #fff;
+      border-radius: 10px;
+      padding: 15px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      margin-top: 30px;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    th, td {
+      padding: 12px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+
+    .actions {
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .actions button {
+      margin: 6px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 30px;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .actions button:hover {
+      background-color: #0056b3;
+    }
+
+    .logout-btn {
+      background-color: #dc3545;
+    }
+
+    .logout-btn:hover {
+      background-color: #bd2130;
+    }
+
+    .profile-info {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔗 Dashboard Link MJ98</h1>
+
+  <!-- PROFIL -->
+  <div class="profile-info" id="profil">
+    Memuat profil...
+  </div>
+
+  <!-- RINGKASAN -->
+  <div class="stats">
+    <div class="card">
+      <h2>Voucher Terjual</h2>
+      <p id="jumlahVoucher">0</p>
+    </div>
+    <div class="card">
+      <h2>Total Pendapatan</h2>
+      <p id="totalPendapatan">Rp 0</p>
+    </div>
+  </div>
+
+  <!-- GRAFIK -->
+  <canvas id="voucherChart" height="150"></canvas>
+
+  <!-- TABEL RIWAYAT -->
+  <table>
+    <thead>
+      <tr><th>Tanggal</th><th>Voucher</th><th>Jumlah</th><th>Total</th></tr>
+    </thead>
+    <tbody id="tabelPenjualan">
+      <tr><td colspan="4">Memuat...</td></tr>
+    </tbody>
+  </table>
+
+  <!-- TOMBOL AKSI -->
+  <div class="actions">
+    <button onclick="location.href='laporan-link.html'">📈 Laporan</button>
+    <button onclick="location.href='stok.html'">📦 Cek Stok</button>
+    <button onclick="location.href='klaim-kupon.html'">🎁 Klaim Kupon</button>
+    <button onclick="location.href='penjualan-manual.html'">📝 Penjualan Manual</button>
+    <button class="logout-btn" id="logoutBtn">🚪 Logout</button>
+  </div>
+
+  <!-- SCRIPT -->
+  <script type="module">
+    import { supabase } from './supabase-init.js';
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return window.location.href = "login.html";
+
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("role, id, full_name, created_at")
+        .eq("id", user.id)
+        .single();
+
+      if (error || !profile || profile.role !== "link") {
+        alert("❌ Akses ditolak. Anda bukan LINK.");
+        return window.location.href = "login.html";
+      }
+
+      document.getElementById("profil").innerHTML = `
+        <p>👋 Halo, <b>${profile.full_name || "Link"}</b></p>
+        <p>🗓 Bergabung sejak: ${new Date(profile.created_at).toLocaleDateString('id-ID')}</p>
+      `;
+
+      const { data: penjualan } = await supabase
+        .from("penjualan")
+        .select("*")
+        .eq("link_id", user.id)
+        .order("tanggal", { ascending: false });
+
+      let totalVoucher = 0;
+      let totalPendapatan = 0;
+      const perHari = {};
+      const tbody = document.getElementById("tabelPenjualan");
+      tbody.innerHTML = "";
+
+      penjualan.forEach(p => {
+        const total = p.harga_jual * p.qty;
+        totalVoucher += p.qty;
+        totalPendapatan += total;
+
+        const tgl = new Date(p.tanggal).toISOString().split("T")[0];
+        if (!perHari[tgl]) perHari[tgl] = 0;
+        perHari[tgl] += p.qty;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${tgl}</td>
+          <td>${p.nama_voucher}</td>
+          <td>${p.qty}</td>
+          <td>Rp ${total.toLocaleString()}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById("jumlahVoucher").textContent = totalVoucher;
+      document.getElementById("totalPendapatan").textContent = `Rp ${totalPendapatan.toLocaleString()}`;
+
+      const labels = Object.keys(perHari).sort();
+      const dataPoints = labels.map(tgl => perHari[tgl]);
+
+      new Chart(document.getElementById("voucherChart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            label: "Voucher Terjual per Hari",
+            data: dataPoints,
+            borderColor: "#007bff",
+            backgroundColor: "rgba(0, 123, 255, 0.1)",
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: {
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    });
+
+    // Logout
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      await supabase.auth.signOut();
+      window.location.href = "login.html";
+    });
+  </script>
+</body>
+</html>
